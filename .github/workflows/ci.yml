@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: API (lint y pruebas)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: nmc
+          POSTGRES_PASSWORD: nmc
+          POSTGRES_DB: nmc_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nmc -d nmc_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Credenciales desechables del contenedor de pruebas; no son secretos reales.
+      NMC_TEST_DATABASE_URL: postgresql+psycopg://nmc:nmc@localhost:5432/nmc_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Pruebas (pytest)
+        run: pytest
+      - name: El esquema y las migraciones coinciden
+        env:
+          NMC_DATABASE_URL: postgresql+psycopg://nmc:nmc@localhost:5432/nmc_test
+        run: |
+          alembic upgrade head
+          alembic check
+
+  web:
+    name: Panel web (lint, tipos y compilación)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  docker:
+    name: Docker Compose (instalación documentada)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crear .env de prueba
+        run: |
+          cp .env.example .env
+          # Valores desechables generados en cada ejecución; no son secretos reales.
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 16)|" .env
+          sed -i "s|^NMC_SECRET_KEY=.*|NMC_SECRET_KEY=$(openssl rand -hex 32)|" .env
+          sed -i "s|^NMC_ADMIN_PASSWORD=.*|NMC_ADMIN_PASSWORD=ci-$(openssl rand -hex 8)|" .env
+      - name: Construir y arrancar
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Comprobar API, panel, sesión y respaldo
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8000/health
+          curl -fsS -o /dev/null http://localhost:3000/login
+          PASSWORD=$(grep '^NMC_ADMIN_PASSWORD=' .env | cut -d= -f2)
+          TOKEN=$(curl -fsS http://localhost:8000/api/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\": \"admin\", \"password\": \"$PASSWORD\"}" | jq -r .access_token)
+          curl -fsS http://localhost:8000/api/v1/memories \
+            -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+            -d '{"content": "Recuerdo de comprobación de la integración continua."}' > /dev/null
+          curl -fsS http://localhost:8000/api/v1/stats -H "Authorization: Bearer $TOKEN" | jq -e '.memories.total == 1'
+          docker compose exec -T -u nmc api python scripts/manage.py backup --label ci
+          ls backups/nmc-backup-*.dump
+      - name: Registros si algo falla
+        if: failure()
+        run: docker compose logs --tail=200

@@ -33,7 +33,9 @@ RUN useradd --create-home --uid 1000 nmc \
     && mkdir -p /backups /home/nmc/.cache \
     && chown -R nmc:nmc /backups /home/nmc/.cache /app \
     && chmod +x /usr/local/bin/api-entrypoint.sh
-USER nmc
+
+# El contenedor arranca como root solo para ajustar permisos de los volúmenes;
+# el entrypoint baja de inmediato al usuario "nmc" (ver api-entrypoint.sh).
 
 ENV NMC_BACKUP_DIR=/backups \
     FASTEMBED_CACHE_PATH=/home/nmc/.cache/fastembed

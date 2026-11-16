@@ -38,4 +38,4 @@ logs: ## Ver los registros
 	docker compose logs -f --tail=100
 
 backup: ## Crear un respaldo desde el contenedor de la API
-	docker compose exec api python scripts/manage.py backup
+	docker compose exec -u nmc api python scripts/manage.py backup
