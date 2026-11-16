@@ -1,0 +1,39 @@
+# Secretos y configuración local: nunca al repositorio
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Datos privados: la memoria vive en la base de datos, no en Git
+backups/
+*.dump
+*.sql.gz
+nmc-export-*.json
+/data/
+/exports/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# Editor y sistema
+.idea/
+.vscode/
+.DS_Store
