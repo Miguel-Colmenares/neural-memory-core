@@ -20,7 +20,7 @@ verificar» y decidir las mejoras de la sección «Próximos pasos».
 | 5 | Recuperación semántica y respuestas con fuentes | Completada |
 | 6 | Interfaz (panel web) | Completada |
 | 7 | Seguridad y respaldos | Completada |
-| 8 | Pruebas e integración continua | Completada (la CI aún no se ha ejecutado en GitHub) |
+| 8 | Pruebas e integración continua | Completada (CI en verde en GitHub Actions) |
 | 9 | Documentación y despliegue | Completada |
 
 ## Criterios de aceptación
@@ -37,7 +37,7 @@ verificar» y decidir las mejoras de la sección «Próximos pasos».
 | Exportar la información | `test_system_and_recovery.py`; a mano (descarga JSON) |
 | Restaurar una copia de seguridad | `test_system_and_recovery.py` con `pg_dump` y `pg_restore` reales |
 | Ejecutar pruebas automatizadas | `pytest`: 163 pruebas pasan |
-| Arrancar con la instalación documentada | Docker Compose arrancado y probado con una salvedad (ver «Docker») |
+| Arrancar con la instalación documentada | El trabajo `docker` de la CI sigue la instalación documentada desde cero y pasa |
 
 `tests/e2e/test_acceptance.py` recorre todos estos criterios por HTTP en una sola prueba.
 
@@ -63,6 +63,7 @@ verificar» y decidir las mejoras de la sección «Próximos pasos».
 | Migraciones | `alembic upgrade head` y `alembic check` sin diferencias |
 | Panel web | `npm run lint`, `npm run typecheck` y `npm run build` sin errores. Recorrido en Chromium contra la API real: inicio de sesión (correcto e incorrecto), crear proyecto, recuerdos, edición con nueva versión, relación manual, grafo, subida de documento, decisión y tarea de proyecto, preguntas con y sin respuesta, respaldo, exportación e importación, y las diez páginas sin errores de consola ni de red |
 | Docker Compose | Imágenes construidas y los tres servicios arrancados con `docker-compose.yml`; inicio de sesión, creación de un recuerdo y pregunta desde el panel; los datos siguen ahí tras `docker compose down` y `up` |
+| Integración continua | Primera ejecución en GitHub Actions (commit `37ef0e7`) con los tres trabajos en verde: API (lint, 163 pruebas sobre PostgreSQL 17 con pgvector, migraciones), panel (lint, tipos, compilación) y Docker Compose (construcción completa de las imágenes, arranque, inicio de sesión, creación de un recuerdo y respaldo con `pg_dump` dentro del contenedor) |
 | Guía de módulos | El módulo de ejemplo `lecturas` se cargó desde un paquete externo y respondió por HTTP |
 
 ## Sin verificar
@@ -73,11 +74,8 @@ desarrolló. No deben darse por probados hasta comprobarlos.
 | Elemento | Motivo | Cómo comprobarlo |
 | --- | --- | --- |
 | Proveedor `fastembed` (búsqueda por significado real) | La descarga del modelo desde Hugging Face estaba bloqueada por la red. La librería sí se instala en la imagen | Poner `NMC_EMBEDDING_PROVIDER=fastembed`, reiniciar, pulsar «Probar conexión» y «Reindexar todo» en el panel |
-| Línea `apt-get install postgresql-client curl` de `api.Dockerfile` | Los repositorios de Debian estaban bloqueados. La imagen se probó sin ese paso; por tanto, **dentro de Docker** no se probaron los respaldos ni la comprobación de salud del contenedor | El trabajo `docker` de la CI lo cubre: construye la imagen completa y crea un respaldo |
-| Integración continua en GitHub Actions | El repositorio aún no se ha podido publicar | Se ejecuta sola al publicar en `main` |
 | Proveedor `openai` de embeddings y modelo de lenguaje contra un servicio real | No se usan servicios de pago ni claves. Probado solo con un servidor simulado | Configurar una clave propia o un Ollama local y usar «Probar conexión» |
 | Despliegue con dominio, HTTPS y VPN | No se ha desplegado en ningún servidor | Seguir `docs/user_guide/despliegue.md` |
-| PostgreSQL 17 | Las pruebas corrieron sobre PostgreSQL 16; Docker Compose usa la imagen `pgvector/pgvector:pg17`, que arrancó y funcionó en la prueba manual | La CI ejecuta la suite completa sobre pg17 |
 
 ## Errores y limitaciones conocidas
 
@@ -110,12 +108,10 @@ No hay errores conocidos sin corregir. Limitaciones de diseño:
 
 ## Próximos pasos
 
-1. Publicar el repositorio en GitHub y confirmar que la CI pasa (cubre varios puntos «sin
-   verificar»).
-2. Probar `fastembed` en un equipo con acceso a Hugging Face y, si funciona bien, valorar
+1. Probar `fastembed` en un equipo con acceso a Hugging Face y, si funciona bien, valorar
    hacerlo el proveedor recomendado en la guía.
-3. Etiquetar la versión `v0.1.0`.
-4. Mejoras candidatas, por orden sugerido: selector de recuerdo al crear relaciones;
+2. Etiquetar la versión `v0.1.0`.
+3. Mejoras candidatas, por orden sugerido: selector de recuerdo al crear relaciones;
    gestión de usuarios en el panel; detección automática de posibles contradicciones;
    soporte de `.docx`; cifrado opcional de respaldos.
 
